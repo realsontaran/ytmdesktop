@@ -1,4 +1,13 @@
 require('./src/utils/defaultSettings')
+ /**
+  * ADBLOCK!!!!==========================================*/
+ const {
+     ElectronBlocker,
+     fullLists,
+     Request,
+ } = require('@cliqz/adblocker-electron')
+ const fetch = require('node-fetch')
+ /*=====================================================*/
 
 const {
     app,
@@ -139,7 +148,7 @@ if (settingsProvider.get('settings-disable-hardware-acceleration')) {
 }
 
 /* Functions ============================================================================= */
-function createWindow() {
+async function createWindow() {
     if (isMac() || isWindows()) {
         const execApp = path.basename(process.execPath)
         const startArgs = ['--processStart', `"${execApp}"`]
@@ -236,6 +245,39 @@ function createWindow() {
             callback({ requestHeaders: newRequestHeaders })
         }
     )
+    /*====================================*/
+
+    const blocker = await ElectronBlocker.fromLists(fetch, fullLists, {
+        enableCompression: true,
+    })
+
+    blocker.enableBlockingInSession(mainWindow.webContents.session)
+
+    blocker.on('request-blocked', (request) => {
+        console.log('blocked', request.tabId, request.url)
+    })
+
+    blocker.on('request-redirected', (request) => {
+        console.log('redirected', request.tabId, request.url)
+    })
+
+    blocker.on('request-whitelisted', (request) => {
+        console.log('whitelisted', request.tabId, request.url)
+    })
+
+    blocker.on('csp-injected', (request) => {
+        console.log('csp', request.url)
+    })
+
+    blocker.on('script-injected', (script, url) => {
+        console.log('script', script.length, url)
+    })
+
+    blocker.on('style-injected', (style, url) => {
+        console.log('style', style.length, url)
+    })
+
+/*============================================*/
 
     view = new BrowserView({
         webPreferences: {
@@ -2006,3 +2048,8 @@ const analytics = require('./src/providers/analyticsProvider')
 analytics.setEvent('main', 'start', 'v' + app.getVersion(), app.getVersion())
 analytics.setEvent('main', 'os', process.platform, process.platform)
 analytics.setScreen('main')
+
+/*===================================*/
+ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then((blocker) => {
+    blocker.enableBlockingInSession(session.defaultSession)
+})
